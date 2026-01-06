@@ -1,27 +1,7 @@
-# Build artifacts
-tmp/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary
-*.test
-
-# Output of the go coverage tool
-*.out
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS generated files
+.idea
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-
+build.sh
+conf/config.ini
+/tmp/
+/test.go
+go.sum

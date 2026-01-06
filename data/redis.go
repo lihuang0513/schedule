@@ -2,9 +2,10 @@ package data
 
 import (
 	c "app/conf"
-	"github.com/go-redis/redis"
 	"log"
 	"sync"
+
+	"github.com/go-redis/redis"
 )
 
 // Rdb redis客户端

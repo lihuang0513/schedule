@@ -2,9 +2,10 @@ package config
 
 import (
 	. "app/conf/autoload"
-	"github.com/go-ini/ini"
 	"log"
 	"sync"
+
+	"github.com/go-ini/ini"
 )
 
 const (
@@ -62,7 +63,7 @@ func loadIni(configPath string) {
 		//失败
 		log.Fatalf("配置文件加载失败：%q", err.Error())
 	}
-	err = cfg.Section("app").MapTo(&Config)
+	err = cfg.MapTo(&Config)
 	if err != nil {
 		//赋值失败
 		log.Fatalf("配置文件赋值失败：%q", err.Error())

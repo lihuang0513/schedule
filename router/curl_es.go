@@ -28,7 +28,7 @@ func bugToES(errLog string) {
 		Timestamp: time.Now().Format("2006-01-02 15:04:05"),
 		Level:     "ERROR",
 		Message:   fmt.Sprintf("%v", errLog),
-		Project:   "-",
+		Project:   "SCHEDULE",
 	}
 	// 替换为你的Elasticsearch URL 和 索引名
 	sendLogToES(logEntry, config.Config.ElasticSearch.Host+":"+config.Config.ElasticSearch.Port,

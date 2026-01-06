@@ -66,26 +66,9 @@ func ReleaseRouter() *gin.Engine {
 		//设置一天产生一个日志文件
 		rotatelogs.WithRotationTime(24*time.Hour),
 	)
-	//gin.DefaultWriter = io.MultiWriter(f)
 
 	engine := gin.New()
-	//日志记录
-	//engine.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-	//	if param.StatusCode == 404 {
-	//		return ""
-	//	}
-	//	return fmt.Sprintf("客户端IP:%s,请求时间:[%s],请求方式:%s,请求地址:%s,http协议版本:%s,请求状态码:%d,响应时间:%s,客户端:%s，返回大小:%d\n",
-	//		param.ClientIP,
-	//		param.TimeStamp.Format(time.RFC1123),
-	//		param.Method,
-	//		param.Path,
-	//		param.Request.Proto,
-	//		param.StatusCode,
-	//		param.Latency,
-	//		param.Request.UserAgent(),
-	//		param.BodySize,
-	//	)
-	//}))
+
 	// 应用崩溃写入日志同时通知ES
 	tee := newTeeWriter(f)
 	engine.Use(gin.RecoveryWithWriter(tee))

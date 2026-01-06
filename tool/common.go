@@ -8,11 +8,9 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // 创建文件夹
@@ -58,25 +56,6 @@ func GetDeviceParam(zbbDid string) (map[string]any, error) {
 	return param, err
 }
 
-func GetUdid(zbbdid string) (string, error) {
-	decodeByte, _ := base64.StdEncoding.DecodeString(zbbdid)
-
-	dec, _ := AesDecrypt(decodeByte, []byte(config.ZbbDidSalt))
-	dec = PKCS7UnPadding(dec)
-	param := make(map[string]any)
-	err := json.Unmarshal(dec, &param)
-	if err != nil {
-		return "", err
-	}
-
-	platform := param["os"]
-	if platform == "android" {
-		return param["android_id"].(string), nil
-	} else {
-		return param["udid"].(string), nil
-	}
-}
-
 // InArray 判断数据是否在切片数组中
 func InArray[T int | string](value T, array []T) bool {
 	for _, v := range array {
@@ -112,25 +91,6 @@ func ConvertVersionToInt(version string) int {
 	}
 
 	return intVersion
-}
-
-// GetRandFor100 获取1～100随机数
-func GetRandFor100() int {
-	// 初始化随机数种子
-	rand.Seed(time.Now().UnixNano())
-
-	// 生成一个[0, 100)的随机数然后加上1
-	randomNumber := rand.Intn(100) + 1
-
-	return randomNumber
-}
-
-// GetRandomNumber 生成并返回一个在 min 到 max 范围内的随机数
-func GetRandomNumber(min int, max int) int {
-	if min >= max {
-		return min
-	}
-	return rand.Intn(max-min) + min
 }
 
 func Md5(str string) string {
@@ -199,5 +159,5 @@ func getUserSportLabelMap(userSportsStr string) map[string]int {
 		}
 	}
 	// 转换成标签map并返回
-	return tool.ArrayToMap(labelArr)
+	return ArrayToMap(labelArr)
 }
