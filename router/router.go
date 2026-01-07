@@ -43,9 +43,9 @@ func SetRouters() *gin.Engine {
 		match.GET("/pgame_recommend/list", controller.RecommendList)
 	}
 
-	// 完赛列表
 	matchRecord := r.Group("/match_record")
 	{
+		// 完赛列表
 		matchRecord.GET("/list", controller.MatchRecordList)
 	}
 

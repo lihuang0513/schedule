@@ -13,65 +13,57 @@ import (
 )
 
 // MatchRecordList 完赛列表接口
-// GET /match_record/list
+// 根据用户兴趣标签获取完赛赛程列表，支持全民联赛数据合并
+// 请求参数：next_date(日期), usersports(兴趣标签), pgame_league_ids(联赛ID), callback(JSONP)
 func MatchRecordList(c *gin.Context) {
 	// 绑定请求参数
 	var req validate.MatchRecordListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		respondWithError(c, req.Callback, "参数错误")
+		respond(c, req.Callback, emptyResponse("参数错误"))
 		return
 	}
 
-	// 处理日期参数
+	// 校验签名（暂时关闭）
+	if !tool.VerifySign(req.NextDate, req.Sign, req.Time, req.AppName) {
+		// respond(c, req.Callback, emptyResponse("签名错误"))
+		// return
+	}
+
+	// 处理日期参数，默认当天
 	if req.NextDate == "" || req.NextDate == "__DATE-__" {
 		req.NextDate = time.Now().Format("2006-01-02")
 	}
 
-	// 校验签名
-	if !tool.VerifySign(req.NextDate, req.Sign, req.Time, req.AppName) {
-		respondWithError(c, req.Callback, "err 3")
+	// 获取完赛列表数据（ES查询日期 + 静态文件获取赛程 + 兴趣过滤）
+	matchRecordResult := services.GetMatchRecordList(req)
+
+	// 合并全民联赛数据（Redis获取 + saishi_id去重 + start_time排序）
+	matchRecordResult = services.MergePgameLeagueData(matchRecordResult, req.NextDate, req.PgameLeagueIds)
+
+	// 返回响应
+	if matchRecordResult == nil {
+		respond(c, req.Callback, emptyResponse(""))
 		return
 	}
-
-	// 获取完赛列表数据
-	result := services.GetMatchRecordList(req)
-
-	// 返回结果
-	respondWithJSON(c, req.Callback, result)
+	respond(c, req.Callback, *matchRecordResult)
 }
 
-// respondWithJSON 返回JSON响应，支持JSONP
-func respondWithJSON(c *gin.Context, callback string, data interface{}) {
+// emptyResponse 构造空数据响应
+func emptyResponse(msg string) validate.MatchRecordResponse {
+	return validate.MatchRecordResponse{
+		Msg:    msg,
+		NoData: 1,
+		List:   []interface{}{},
+	}
+}
+
+// respond 统一响应函数，固定返回 MatchRecordResponse 格式
+func respond(c *gin.Context, callback string, resp validate.MatchRecordResponse) {
 	if callback != "" {
-		// JSONP 响应
 		c.Header("Content-Type", "application/javascript; charset=utf-8")
-		c.String(http.StatusOK, fmt.Sprintf("%s(%s);", callback, toJSON(data)))
+		jsonData, _ := json.Marshal(resp)
+		c.String(http.StatusOK, fmt.Sprintf("%s(%s);", callback, string(jsonData)))
 		return
 	}
-
-	// 普通 JSON 响应
-	c.JSON(http.StatusOK, data)
+	c.JSON(http.StatusOK, resp)
 }
-
-// respondWithError 返回错误响应
-func respondWithError(c *gin.Context, callback string, msg string) {
-	resp := validate.MatchRecordResponse{
-		Msg:      msg,
-		Date:     "",
-		DateStr:  "",
-		NoData:   1,
-		NextDate: "",
-		List:     []interface{}{},
-	}
-	respondWithJSON(c, callback, resp)
-}
-
-// toJSON 将数据转换为JSON字符串
-func toJSON(data interface{}) string {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return "{}"
-	}
-	return string(jsonData)
-}
-
