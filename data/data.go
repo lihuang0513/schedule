@@ -16,11 +16,13 @@ var ws sync.WaitGroup
 func InitData() {
 	once.Do(func() {
 		// 为所有初始化任务添加到 ws 中
-		ws.Add(2)
+		ws.Add(3)
 		// 初始化日志模块
 		go initLogger(&ws)
 		// 初始化 redis
 		go initRedis(&ws)
+		// 初始化内存缓存
+		go initCache(&ws)
 		// 等待所有初始化任务完成
 		ws.Wait()
 	})

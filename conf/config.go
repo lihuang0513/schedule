@@ -46,6 +46,15 @@ const (
 	DQD          = "dongqiudi"
 )
 
+// 缓存配置常量
+const (
+	CacheDays              = 10                                   // 缓存天数
+	StaticRecordURL        = "http://s.qiumibao.com/json/record/" // 静态数据接口地址
+	PgameRecommendRedisKey = "pgame:recommend"                    // Redis key
+	PgameRecommendCacheKey = "pgame:league:recommend"             // 内存缓存 key
+	MatchRecordCachePrefix = "pgame:league:finished:"             // 完赛内存缓存 key 前缀
+)
+
 func InitConfig() {
 	once.Do(func() {
 		// 加载 .ini 配置

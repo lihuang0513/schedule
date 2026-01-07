@@ -4,7 +4,6 @@ import (
 	config "app/conf"
 	"app/data"
 	"app/validate"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,19 +11,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-// 赛程状态常量
-const (
-	StateGoing       = "2" // 进行中
-	StateFinished    = "3" // 完赛
-	StateDeferred    = "4" // 延期
-	StateInterrupted = "5" // 中断
-)
-
-// 静态数据接口地址
-const StaticRecordURL = "http://s.qiumibao.com/json/record/"
+// httpClient 复用 HTTP 客户端（避免每次请求创建新连接）
+var httpClient = &http.Client{Timeout: 5 * time.Second}
 
 // sportsLabelMap 用户运动标签映射
 var sportsLabelMap = map[string][]string{
@@ -52,8 +44,152 @@ var sportsLabelMap = map[string][]string{
 	"63": {"乒乓球"},
 }
 
-// GetMatchRecordList 获取完赛列表
-// 解析用户兴趣标签 → ES查询有数据的日期列表 → 静态文件获取赛程 → 过滤用户兴趣
+// ========== 完赛缓存 ==========
+
+// RefreshMatchRecordCache 刷新近 N 天的完赛缓存（并行获取，统一写入）
+func RefreshMatchRecordCache() {
+	now := time.Now()
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	// 临时存储结果，避免并发写入
+	results := make(map[string]*validate.DayMatchRecordCache)
+
+	// 并行获取数据
+	for i := 0; i < config.CacheDays; i++ {
+		wg.Add(1)
+		go func(offset int) {
+			defer wg.Done()
+			date := now.AddDate(0, 0, -offset).Format("2006-01-02")
+			cacheData := FetchDayMatchRecord(date)
+
+			// 加锁写入临时 map
+			mu.Lock()
+			results[date] = cacheData
+			mu.Unlock()
+		}(i)
+	}
+
+	// 等待所有协程完成
+	wg.Wait()
+
+	// 统一写入缓存
+	for date, cacheData := range results {
+		data.SetMatchRecordCache(date, cacheData)
+	}
+
+	data.Logger.Printf("完赛缓存刷新完成，缓存 %d 天数据\n", config.CacheDays)
+}
+
+// FetchDayMatchRecord 获取某一天的完赛数据（静态文件 + 全民赛程）
+func FetchDayMatchRecord(date string) *validate.DayMatchRecordCache {
+	var allList []interface{}
+
+	// 1. 从静态文件获取完赛数据
+	staticList := fetchStaticMatchRecord(date)
+	if len(staticList) > 0 {
+		allList = append(allList, staticList...)
+	}
+
+	// 2. 从 Redis 获取全民赛程数据
+	pgameList := fetchPgameLeagueRecord(date)
+	if len(pgameList) > 0 {
+		// 去重：用 saishi_id
+		existingIds := make(map[string]bool)
+		for _, item := range allList {
+			if m, ok := item.(map[string]interface{}); ok {
+				if saishiId, ok := m["saishi_id"].(string); ok {
+					existingIds[saishiId] = true
+				}
+			}
+		}
+
+		for _, item := range pgameList {
+			if m, ok := item.(map[string]interface{}); ok {
+				if saishiId, ok := m["saishi_id"].(string); ok {
+					if !existingIds[saishiId] {
+						allList = append(allList, item)
+					}
+				}
+			}
+		}
+	}
+
+	// 3. 按 start_time 倒序排序
+	if len(allList) > 0 {
+		sortByStartTime(allList)
+	}
+
+	return &validate.DayMatchRecordCache{
+		Date:     date,
+		DateStr:  formatDateStr(date),
+		List:     allList,
+		UpdateAt: time.Now(),
+	}
+}
+
+// LoadAndCacheMatchRecord 加载数据并写入缓存
+func LoadAndCacheMatchRecord(date string) *validate.DayMatchRecordCache {
+	cacheData := FetchDayMatchRecord(date)
+	data.SetMatchRecordCache(date, cacheData)
+	return cacheData
+}
+
+// fetchStaticMatchRecord 从静态文件获取完赛数据
+func fetchStaticMatchRecord(date string) []interface{} {
+	url := config.StaticRecordURL + date + ".htm"
+
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	var dayData validate.DayScheduleData
+	if err := json.Unmarshal(body, &dayData); err != nil {
+		return nil
+	}
+
+	// 转换为 []interface{}
+	result := make([]interface{}, 0, len(dayData.List))
+	for _, item := range dayData.List {
+		result = append(result, item)
+	}
+
+	return result
+}
+
+// fetchPgameLeagueRecord 从 Redis 获取全民赛程数据（所有联赛）
+func fetchPgameLeagueRecord(date string) []interface{} {
+	redisKey := fmt.Sprintf("pgame:league:schedule:%s", date)
+
+	jsonStr, err := data.Rdb.Get(redisKey).Result()
+	if err != nil {
+		return nil
+	}
+
+	var allLeagueData map[string]validate.PgameLeagueData
+	if err := json.Unmarshal([]byte(jsonStr), &allLeagueData); err != nil {
+		return nil
+	}
+
+	var result []interface{}
+	for _, leagueData := range allLeagueData {
+		for _, item := range leagueData.List {
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
+// GetMatchRecordList 获取完赛列表（从内存缓存读取）
+// 解析用户兴趣标签 → 从缓存读取近10天数据 → 过滤用户兴趣
 // 分页设计：找到第一天有数据的立即返回，通过 next_date 获取下一页
 func GetMatchRecordList(req validate.MatchRecordListRequest) *validate.MatchRecordResponse {
 	// 解析用户兴趣标签（"1,2,3" → ["足球", "篮球", "NBA"]）
@@ -62,77 +198,65 @@ func GetMatchRecordList(req validate.MatchRecordListRequest) *validate.MatchReco
 		return nil
 	}
 
-	// 从 ES 查询有数据的日期列表（过去1个月 ~ 指定日期，倒序）
-	dateList := getScheduleDateList(req.NextDate, userSportsLabels)
-	if len(dateList) == 0 {
-		return nil
+	// 计算查询的起始日期
+	startDate, err := time.Parse("2006-01-02", req.NextDate)
+	if err != nil {
+		startDate = time.Now()
 	}
 
-	// 按日期获取赛程数据，找到第一天有数据的立即返回
-	result := getDayScheduleListByDateList(dateList, userSportsLabels)
-	if result == nil || len(result.List) == 0 {
-		return nil
+	// 从缓存读取近 10 天数据，找到第一天有符合用户兴趣的数据
+	for i := 0; i < config.CacheDays; i++ {
+		date := startDate.AddDate(0, 0, -i).Format("2006-01-02")
+
+		// 从缓存获取当天数据
+		cacheData, needReload := data.GetMatchRecordCache(date)
+
+		// 缓存未加载，重新获取并写入缓存
+		if needReload {
+			cacheData = LoadAndCacheMatchRecord(date)
+		}
+
+		// 缓存已加载但没有数据，跳过（不需要重新获取）
+		if cacheData == nil || len(cacheData.List) == 0 {
+			continue
+		}
+
+		// 根据用户兴趣过滤
+		filteredList := filterByUserSports(cacheData.List, userSportsLabels)
+		if len(filteredList) == 0 {
+			continue
+		}
+
+		// 计算 next_date（下一天继续查）
+		nextDate := startDate.AddDate(0, 0, -(i + 1)).Format("2006-01-02")
+
+		return &validate.MatchRecordResponse{
+			Date:     cacheData.Date,
+			DateStr:  cacheData.DateStr,
+			NextDate: nextDate,
+			List:     filteredList,
+		}
 	}
 
-	return result
+	return nil
 }
 
-// PgameLeagueData Redis 中联赛数据结构
-type PgameLeagueData struct {
-	Date    string                   `json:"date"`
-	DateStr string                   `json:"date_str"`
-	List    []map[string]interface{} `json:"list"`
-}
-
-// MergePgameLeagueData 合并全民联赛数据
-// 从 Redis 获取指定联赛数据（key: pgame:league:schedule:日期）
-// 根据 saishi_id 去重，按 start_time 倒序排序
-func MergePgameLeagueData(result *validate.MatchRecordResponse, date string, leagueIds string) *validate.MatchRecordResponse {
-	// 没有传联赛ID，直接返回原结果
-	if leagueIds == "" {
-		return result
+// filterByUserSports 根据用户兴趣过滤赛程列表
+func filterByUserSports(list []interface{}, userSportsLabels []string) []interface{} {
+	if len(userSportsLabels) == 0 {
+		return list
 	}
 
-	// 确定查询日期，优先使用完赛结果的日期
-	queryDate := date
-	if result != nil && result.Date != "" {
-		queryDate = result.Date
-	}
-
-	// 收集已有的 saishi_id 用于去重
-	existingIds := make(map[string]bool)
-	if result != nil {
-		for _, item := range result.List {
-			if m, ok := item.(map[string]interface{}); ok {
-				if saishiId, ok := m["saishi_id"].(string); ok {
-					existingIds[saishiId] = true
-				}
+	filtered := make([]interface{}, 0)
+	for _, item := range list {
+		if m, ok := item.(map[string]interface{}); ok {
+			if matchUserSportsLabels(m, userSportsLabels) {
+				filtered = append(filtered, item)
 			}
 		}
 	}
 
-	// 从 Redis 获取联赛数据，自动过滤重复的 saishi_id
-	leagueData := getPgameLeagueScheduleFromRedis(queryDate, leagueIds, existingIds)
-	if len(leagueData) == 0 {
-		return result
-	}
-
-	// 合并数据并排序，如果没有完赛数据但是有全民赛事，返回全民赛事
-	if result == nil {
-		// 完赛没数据，用 Redis 数据构造响应
-		sortByStartTime(leagueData)
-		return &validate.MatchRecordResponse{
-			Date:     queryDate,
-			DateStr:  formatDateStr(queryDate),
-			NextDate: calcNextDate(queryDate),
-			List:     leagueData,
-		}
-	}
-
-	// 完赛有数据，合并后按 start_time 倒序排序
-	result.List = append(result.List, leagueData...)
-	sortByStartTime(result.List)
-	return result
+	return filtered
 }
 
 // sortByStartTime 按 start_time 倒序排序（时间大的在前）
@@ -144,66 +268,21 @@ func sortByStartTime(list []interface{}) {
 	})
 }
 
-// getStartTime 从 item 中提取 start_time
+// getStartTime 从 item 中提取 start_time（兼容 string 和 number 类型）
 func getStartTime(item interface{}) int64 {
 	if m, ok := item.(map[string]interface{}); ok {
-		if st, ok := m["start_time"].(string); ok {
-			if ts, err := strconv.ParseInt(st, 10, 64); err == nil {
+		switch v := m["start_time"].(type) {
+		case string:
+			if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
 				return ts
 			}
+		case float64:
+			return int64(v)
+		case int64:
+			return v
 		}
 	}
 	return 0
-}
-
-// getPgameLeagueScheduleFromRedis 从 Redis 获取指定联赛的赛程数据（自动去重）
-func getPgameLeagueScheduleFromRedis(date string, leagueIds string, existingIds map[string]bool) []interface{} {
-	if date == "" || leagueIds == "" {
-		return nil
-	}
-
-	// 构建 Redis key
-	redisKey := fmt.Sprintf("pgame:league:schedule:%s", date)
-
-	// 从 Redis 获取数据
-	jsonStr, err := data.Rdb.Get(redisKey).Result()
-	if err != nil {
-		return nil
-	}
-
-	// 解析 JSON
-	var allLeagueData map[string]PgameLeagueData
-	if err := json.Unmarshal([]byte(jsonStr), &allLeagueData); err != nil {
-		return nil
-	}
-
-	// 解析联赛 ID 列表
-	ids := strings.Split(leagueIds, ",")
-	idSet := make(map[string]bool)
-	for _, id := range ids {
-		id = strings.TrimSpace(id)
-		if id != "" {
-			idSet[id] = true
-		}
-	}
-
-	// 筛选指定联赛的数据（同时去重）
-	var result []interface{}
-	for leagueId, leagueData := range allLeagueData {
-		if idSet[leagueId] {
-			for _, item := range leagueData.List {
-				// 去重：跳过已存在的 saishi_id
-				if saishiId, ok := item["saishi_id"].(string); ok {
-					if existingIds[saishiId] {
-						continue
-					}
-				}
-				result = append(result, item)
-			}
-		}
-	}
-
-	return result
 }
 
 // formatDateStr 格式化日期字符串，如 "1月07日 星期二"
@@ -214,15 +293,6 @@ func formatDateStr(date string) string {
 	}
 	weekdays := []string{"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"}
 	return fmt.Sprintf("%d月%02d日 %s", t.Month(), t.Day(), weekdays[t.Weekday()])
-}
-
-// calcNextDate 计算下一页日期（前一天）
-func calcNextDate(date string) string {
-	t, err := time.Parse("2006-01-02", date)
-	if err != nil {
-		return ""
-	}
-	return t.AddDate(0, 0, -1).Format("2006-01-02")
 }
 
 // getUserSportsLabels 获取用户兴趣运动标签
@@ -260,217 +330,6 @@ func getUserSportsLabels(userSports string) []string {
 	}
 
 	return labelArr
-}
-
-func getScheduleDateList(date string, userSportsLabels []string) []string {
-	var endDate, startDate string
-	if date == "" {
-		endDate = time.Now().Format("2006-01-02")
-		startDate = time.Now().AddDate(0, -1, 0).Format("2006-01-02")
-	} else {
-		t, err := time.Parse("2006-01-02", date)
-		if err != nil {
-			endDate = time.Now().Format("2006-01-02")
-		} else {
-			endDate = t.Format("2006-01-02")
-		}
-		startDate = time.Now().AddDate(0, -1, 0).Format("2006-01-02")
-	}
-
-	// 将标签转换为小写
-	lowerLabels := make([]interface{}, len(userSportsLabels))
-	for i, label := range userSportsLabels {
-		lowerLabels[i] = strings.ToLower(label)
-	}
-
-	// 构建ES查询
-	query := map[string]interface{}{
-		"_source": []string{"saishi_id", "type", "s_date"},
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"filter": []interface{}{
-					map[string]interface{}{
-						"terms": map[string]interface{}{
-							"state": []string{StateGoing, StateFinished, StateDeferred, StateInterrupted},
-						},
-					},
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"is_visible": 1,
-						},
-					},
-					map[string]interface{}{
-						"range": map[string]interface{}{
-							"s_date": map[string]interface{}{
-								"gte": startDate,
-								"lte": endDate,
-							},
-						},
-					},
-					map[string]interface{}{
-						"terms": map[string]interface{}{
-							"label_has_rec.label_text": lowerLabels,
-						},
-					},
-				},
-			},
-		},
-		"aggs": map[string]interface{}{
-			"group_by_date": map[string]interface{}{
-				"terms": map[string]interface{}{
-					"field": "s_date",
-					"size":  30,
-					"order": map[string]interface{}{
-						"_key": "desc",
-					},
-				},
-			},
-		},
-		"size": 0,
-	}
-
-	// 发送ES查询请求
-	resultJSON := searchSchedulesIndex(query)
-	if resultJSON == "" {
-		return nil
-	}
-
-	// 解析结果
-	var result map[string]interface{}
-	if err := json.Unmarshal([]byte(resultJSON), &result); err != nil {
-		return nil
-	}
-
-	// 提取日期列表
-	aggregations, ok := result["aggregations"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	groupByDate, ok := aggregations["group_by_date"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	buckets, ok := groupByDate["buckets"].([]interface{})
-	if !ok {
-		return nil
-	}
-
-	dateList := make([]string, 0, len(buckets))
-	for _, bucket := range buckets {
-		b, ok := bucket.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if keyAsString, ok := b["key_as_string"].(string); ok {
-			dateList = append(dateList, keyAsString)
-		} else if key, ok := b["key"].(string); ok {
-			dateList = append(dateList, key)
-		}
-	}
-
-	return dateList
-}
-
-// searchSchedulesIndex 发送ES搜索请求
-func searchSchedulesIndex(query map[string]interface{}) string {
-	esConfig := config.Config.ScheduleES
-	url := fmt.Sprintf("http://%s:%s/schedules/_search?pretty", esConfig.Host, esConfig.Port)
-
-	queryJSON, err := json.Marshal(query)
-	if err != nil {
-		data.Logger.Printf("ES查询JSON序列化失败: %v\n", err)
-		return ""
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(queryJSON))
-	if err != nil {
-		data.Logger.Printf("ES请求创建失败: %v\n", err)
-		return ""
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.SetBasicAuth(esConfig.User, esConfig.Password)
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		data.Logger.Printf("ES请求执行失败: %v\n", err)
-		return ""
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		data.Logger.Printf("ES响应读取失败: %v\n", err)
-		return ""
-	}
-
-	return string(body)
-}
-
-func getDayScheduleListByDateList(dateList []string, userSportsLabels []string) *validate.MatchRecordResponse {
-	if len(dateList) == 0 {
-		return nil
-	}
-
-	client := &http.Client{Timeout: 5 * time.Second}
-
-	for idx, date := range dateList {
-		// 获取静态JSON数据
-		url := StaticRecordURL + date + ".htm"
-		resp, err := client.Get(url)
-		if err != nil {
-			continue
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			continue
-		}
-
-		var dayData validate.DayScheduleData
-		if err := json.Unmarshal(body, &dayData); err != nil {
-			continue
-		}
-
-		if len(dayData.List) == 0 {
-			continue
-		}
-
-		// 过滤符合用户兴趣的赛程
-		filteredList := make([]interface{}, 0)
-		for _, item := range dayData.List {
-			if matchUserSportsLabels(item, userSportsLabels) {
-				filteredList = append(filteredList, item)
-			}
-		}
-
-		if len(filteredList) > 0 {
-			// 计算 next_date
-			var nextDate string
-			if idx < len(dateList)-1 {
-				nextDate = dateList[idx+1]
-			} else {
-				// 计算前一天
-				t, err := time.Parse("2006-01-02", date)
-				if err == nil {
-					nextDate = t.AddDate(0, 0, -1).Format("2006-01-02")
-				}
-			}
-
-			return &validate.MatchRecordResponse{
-				Date:     dayData.Date,
-				DateStr:  dayData.DateStr,
-				NextDate: nextDate,
-				List:     filteredList,
-			}
-		}
-	}
-
-	return nil
 }
 
 // matchUserSportsLabels 检查赛程是否匹配用户兴趣标签

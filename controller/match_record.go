@@ -13,8 +13,8 @@ import (
 )
 
 // MatchRecordList 完赛列表接口
-// 根据用户兴趣标签获取完赛赛程列表，支持全民联赛数据合并
-// 请求参数：next_date(日期), usersports(兴趣标签), pgame_league_ids(联赛ID), callback(JSONP)
+// 从内存缓存读取完赛数据（已整合全民赛程），根据用户兴趣过滤
+// 请求参数：next_date(日期), usersports(兴趣标签), callback(JSONP)
 func MatchRecordList(c *gin.Context) {
 	// 绑定请求参数
 	var req validate.MatchRecordListRequest
@@ -34,11 +34,8 @@ func MatchRecordList(c *gin.Context) {
 		req.NextDate = time.Now().Format("2006-01-02")
 	}
 
-	// 获取完赛列表数据（ES查询日期 + 静态文件获取赛程 + 兴趣过滤）
+	// 从内存缓存获取完赛数据（已整合全民赛程 + 兴趣过滤）
 	matchRecordResult := services.GetMatchRecordList(req)
-
-	// 合并全民联赛数据（Redis获取 + saishi_id去重 + start_time排序）
-	matchRecordResult = services.MergePgameLeagueData(matchRecordResult, req.NextDate, req.PgameLeagueIds)
 
 	// 返回响应
 	if matchRecordResult == nil {

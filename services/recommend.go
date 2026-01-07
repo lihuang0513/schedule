@@ -1,12 +1,15 @@
 package services
 
 import (
+	config "app/conf"
 	"app/data"
 	"app/tool"
 	"app/validate"
-	"fmt"
-	"github.com/gin-gonic/gin"
+	"encoding/json"
 	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -14,11 +17,53 @@ const (
 	errorDeviceParamEmpty = "设备信息异常"
 )
 
-func GetPGameList(c *gin.Context) (string, error) {
-	params := getPGameListParams(c)
-	fmt.Println(params)
+// ========== 推荐数据缓存 ==========
 
-	return "", nil
+// RefreshPgameRecommendCache 刷新推荐数据缓存
+func RefreshPgameRecommendCache() {
+	cacheData := FetchPgameRecommend()
+	data.SetPgameRecommendCache(cacheData)
+	data.Logger.Println("推荐缓存刷新完成")
+}
+
+// FetchPgameRecommend 从 Redis 获取推荐数据
+func FetchPgameRecommend() *validate.PgameRecommendCache {
+	jsonStr, err := data.Rdb.Get(config.PgameRecommendRedisKey).Result()
+	if err != nil {
+		return &validate.PgameRecommendCache{
+			Data:     nil,
+			UpdateAt: time.Now(),
+		}
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return &validate.PgameRecommendCache{
+			Data:     nil,
+			UpdateAt: time.Now(),
+		}
+	}
+
+	return &validate.PgameRecommendCache{
+		Data:     result,
+		UpdateAt: time.Now(),
+	}
+}
+
+// GetPgameRecommend 从缓存获取全民赛事推荐数据
+func GetPgameRecommend() map[string]interface{} {
+	cacheData, needReload := data.GetPgameRecommendCache()
+
+	// 缓存未加载，重新获取
+	if needReload {
+		cacheData = FetchPgameRecommend()
+		data.SetPgameRecommendCache(cacheData)
+	}
+
+	if cacheData == nil {
+		return nil
+	}
+	return cacheData.Data
 }
 
 func getPGameListParams(c *gin.Context) (request validate.PGameListRequestParams) {

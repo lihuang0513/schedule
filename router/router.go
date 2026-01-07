@@ -16,8 +16,6 @@ import (
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	// 导入标准库的io包，提供基本的输入输出功能
 	"io"
-	// 导入标准库的io/ioutil包，提供旧版的文件和IO工具函数
-	"io/ioutil"
 	// 导入标准库的时间包，用于处理时间和时区相关操作
 	"time"
 )
@@ -26,7 +24,7 @@ import (
 func SetRouters() *gin.Engine {
 	var r *gin.Engine
 
-	if c.Config.Server.Debug == false {
+	if !c.Config.Server.Debug {
 		// 生产模式
 		r = ReleaseRouter()
 	} else {
@@ -37,17 +35,8 @@ func SetRouters() *gin.Engine {
 	// 使用Gzip中间件
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 
-	match := r.Group("/match")
-	{
-		// 推荐
-		match.GET("/pgame_recommend/list", controller.RecommendList)
-	}
-
-	matchRecord := r.Group("/match_record")
-	{
-		// 完赛列表
-		matchRecord.GET("/list", controller.MatchRecordList)
-	}
+	r.GET("/pgame_recommend", controller.RecommendList)
+	r.GET("/finished", controller.MatchRecordList)
 
 	return r
 }
@@ -57,7 +46,7 @@ func ReleaseRouter() *gin.Engine {
 	// 切换到生产模式
 	gin.SetMode(gin.ReleaseMode)
 	// 禁用 gin 输出接口访问日志
-	gin.DefaultWriter = ioutil.Discard
+	gin.DefaultWriter = io.Discard
 	// 判断文件夹是否存在没有则创建
 	tool.MakeDir(c.Config.Server.LogDir)
 	// 记录到文件。

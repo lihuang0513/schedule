@@ -1,5 +1,7 @@
 package validate
 
+import "time"
+
 // MatchRecordListRequest 完赛列表请求参数
 type MatchRecordListRequest struct {
 	NextDate       string `form:"next_date"`        // 日期，默认当天
@@ -9,6 +11,14 @@ type MatchRecordListRequest struct {
 	AppName        string `form:"appname"`          // 应用名称
 	Callback       string `form:"callback"`         // JSONP 回调函数名
 	PgameLeagueIds string `form:"pgame_league_ids"` // 联赛ID列表，逗号分隔
+}
+
+// DayMatchRecordCache 单日完赛缓存数据结构
+type DayMatchRecordCache struct {
+	Date     string        `json:"date"`
+	DateStr  string        `json:"date_str"`
+	List     []interface{} `json:"list"`
+	UpdateAt time.Time     `json:"update_at"`
 }
 
 // MatchRecordResponse 完赛列表响应
@@ -23,6 +33,13 @@ type MatchRecordResponse struct {
 
 // DayScheduleData 每日赛程静态数据结构
 type DayScheduleData struct {
+	Date    string                   `json:"date"`
+	DateStr string                   `json:"date_str"`
+	List    []map[string]interface{} `json:"list"`
+}
+
+// PgameLeagueData Redis 中联赛数据结构
+type PgameLeagueData struct {
 	Date    string                   `json:"date"`
 	DateStr string                   `json:"date_str"`
 	List    []map[string]interface{} `json:"list"`
