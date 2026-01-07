@@ -6,6 +6,8 @@ import (
 	c "app/conf"
 	// 导入项目内部的控制器包，处理HTTP请求和响应
 	"app/controller"
+	// 导入项目内部的数据包
+	"app/data"
 	// 导入项目内部的工具包，提供辅助功能和工具函数
 	"app/tool"
 	// 导入gin的gzip中间件，用于压缩HTTP响应体
@@ -16,6 +18,8 @@ import (
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	// 导入标准库的io包，提供基本的输入输出功能
 	"io"
+	"net/http"
+
 	// 导入标准库的时间包，用于处理时间和时区相关操作
 	"time"
 )
@@ -37,6 +41,14 @@ func SetRouters() *gin.Engine {
 
 	r.GET("/pgame_recommend", controller.RecommendList)
 	r.GET("/finished", controller.MatchRecordList)
+
+	r.GET("/cache_stats", func(ctx *gin.Context) {
+		if ctx.Query("key") != "hbafbasljfkmg" {
+			ctx.JSON(http.StatusForbidden, gin.H{"msg": "forbidden"})
+			return
+		}
+		ctx.JSON(http.StatusOK, data.GetCacheStats())
+	})
 
 	return r
 }

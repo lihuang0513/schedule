@@ -3,7 +3,9 @@ package data
 import (
 	config "app/conf"
 	"app/validate"
+	"encoding/json"
 	"reflect"
+	"runtime"
 	"sync"
 	"time"
 
@@ -18,6 +20,78 @@ func initCache(ws *sync.WaitGroup) {
 	defer ws.Done()
 	// 设置超时时间和清理时间
 	Cache = cache.New(5*time.Minute, 10*time.Minute)
+}
+
+// CacheStats 缓存统计信息
+type CacheStats struct {
+	ItemCount   int              `json:"item_count"`    // 缓存项数量
+	CacheSizeMB float64          `json:"cache_size_mb"` // 缓存估算大小（MB）
+	Keys        []string         `json:"keys"`          // 所有 key
+	KeyDetails  []CacheKeyDetail `json:"key_details"`   // 每个 key 的详情
+	MemStats    RuntimeMemStats  `json:"mem_stats"`     // 运行时内存统计
+}
+
+// CacheKeyDetail 单个缓存项详情
+type CacheKeyDetail struct {
+	Key       string  `json:"key"`
+	SizeMB    float64 `json:"size_mb"`    // 估算大小（MB）
+	ListCount int     `json:"list_count"` // List 数量（如果有）
+}
+
+// RuntimeMemStats 运行时内存统计
+type RuntimeMemStats struct {
+	AllocMB      float64 `json:"alloc_mb"`       // 当前分配的内存（MB）
+	TotalAllocMB float64 `json:"total_alloc_mb"` // 累计分配的内存（MB）
+	SysMB        float64 `json:"sys_mb"`         // 从系统获取的内存（MB）
+	NumGC        uint32  `json:"num_gc"`         // GC 次数
+}
+
+// GetCacheStats 获取缓存统计信息
+func GetCacheStats() CacheStats {
+	items := Cache.Items()
+	keys := make([]string, 0, len(items))
+	keyDetails := make([]CacheKeyDetail, 0, len(items))
+	var totalSize int64
+
+	for k, item := range items {
+		keys = append(keys, k)
+
+		// 估算每个 key 的大小
+		jsonBytes, _ := json.Marshal(item.Object)
+		size := len(jsonBytes)
+		totalSize += int64(size)
+
+		detail := CacheKeyDetail{
+			Key:    k,
+			SizeMB: float64(size) / 1024 / 1024,
+		}
+
+		// 获取 List 数量
+		if cacheData, ok := item.Object.(*validate.DayMatchRecordCache); ok {
+			detail.ListCount = len(cacheData.List)
+		} else if cacheData, ok := item.Object.(*validate.PgameRecommendCache); ok {
+			detail.ListCount = len(cacheData.Data)
+		}
+
+		keyDetails = append(keyDetails, detail)
+	}
+
+	// 获取运行时内存统计
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	return CacheStats{
+		ItemCount:   Cache.ItemCount(),
+		CacheSizeMB: float64(totalSize) / 1024 / 1024,
+		Keys:        keys,
+		KeyDetails:  keyDetails,
+		MemStats: RuntimeMemStats{
+			AllocMB:      float64(m.Alloc) / 1024 / 1024,
+			TotalAllocMB: float64(m.TotalAlloc) / 1024 / 1024,
+			SysMB:        float64(m.Sys) / 1024 / 1024,
+			NumGC:        m.NumGC,
+		},
+	}
 }
 
 // ========== 完赛数据缓存 ==========
