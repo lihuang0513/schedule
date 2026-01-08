@@ -24,11 +24,11 @@ func initCache(ws *sync.WaitGroup) {
 
 // CacheStats 缓存统计信息
 type CacheStats struct {
+	MemStats    RuntimeMemStats  `json:"mem_stats"`     // 运行时内存统计
 	ItemCount   int              `json:"item_count"`    // 缓存项数量
 	CacheSizeMB float64          `json:"cache_size_mb"` // 缓存估算大小（MB）
 	Keys        []string         `json:"keys"`          // 所有 key
 	KeyDetails  []CacheKeyDetail `json:"key_details"`   // 每个 key 的详情
-	MemStats    RuntimeMemStats  `json:"mem_stats"`     // 运行时内存统计
 }
 
 // CacheKeyDetail 单个缓存项详情
@@ -81,16 +81,16 @@ func GetCacheStats() CacheStats {
 	runtime.ReadMemStats(&m)
 
 	return CacheStats{
-		ItemCount:   Cache.ItemCount(),
-		CacheSizeMB: float64(totalSize) / 1024 / 1024,
-		Keys:        keys,
-		KeyDetails:  keyDetails,
 		MemStats: RuntimeMemStats{
 			AllocMB:      float64(m.Alloc) / 1024 / 1024,
 			TotalAllocMB: float64(m.TotalAlloc) / 1024 / 1024,
 			SysMB:        float64(m.Sys) / 1024 / 1024,
 			NumGC:        m.NumGC,
 		},
+		ItemCount:   Cache.ItemCount(),
+		CacheSizeMB: float64(totalSize) / 1024 / 1024,
+		Keys:        keys,
+		KeyDetails:  keyDetails,
 	}
 }
 
