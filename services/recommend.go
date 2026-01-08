@@ -20,7 +20,12 @@ const (
 // ========== 推荐数据缓存 ==========
 
 // RefreshPgameRecommendCache 刷新推荐数据缓存
+// 增量更新：先检查 Redis 版本号，版本号有变化才拉取数据
 func RefreshPgameRecommendCache() {
+	if !data.CheckVersionChanged(config.PgameRecommendCodeKey) {
+		return // 版本号未变化，跳过
+	}
+
 	cacheData := FetchPgameRecommend()
 	data.SetPgameRecommendCache(cacheData)
 	data.Logger.Println("推荐缓存刷新完成")

@@ -33,9 +33,10 @@ type CacheStats struct {
 
 // CacheKeyDetail 单个缓存项详情
 type CacheKeyDetail struct {
-	Key       string  `json:"key"`
-	SizeMB    float64 `json:"size_mb"`    // 估算大小（MB）
-	ListCount int     `json:"list_count"` // List 数量（如果有）
+	Key       string      `json:"key"`
+	SizeMB    float64     `json:"size_mb"`              // 估算大小（MB）
+	ListCount int         `json:"list_count,omitempty"` // List 数量（数据缓存）
+	Value     interface{} `json:"value,omitempty"`      // 值（版本号等简单类型）
 }
 
 // RuntimeMemStats 运行时内存统计
@@ -66,11 +67,14 @@ func GetCacheStats() CacheStats {
 			SizeMB: float64(size) / 1024 / 1024,
 		}
 
-		// 获取 List 数量
-		if cacheData, ok := item.Object.(*validate.DayMatchRecordCache); ok {
-			detail.ListCount = len(cacheData.List)
-		} else if cacheData, ok := item.Object.(*validate.PgameRecommendCache); ok {
-			detail.ListCount = len(cacheData.Data)
+		// 根据类型获取详情
+		switch v := item.Object.(type) {
+		case *validate.DayMatchRecordCache:
+			detail.ListCount = len(v.List)
+		case *validate.PgameRecommendCache:
+			detail.ListCount = len(v.Data)
+		case int:
+			detail.Value = v // 版本号
 		}
 
 		keyDetails = append(keyDetails, detail)
@@ -92,6 +96,32 @@ func GetCacheStats() CacheStats {
 		Keys:        keys,
 		KeyDetails:  keyDetails,
 	}
+}
+
+// ========== 版本号检查（通用） ==========
+
+// CheckVersionChanged 检查 Redis 版本号是否变化（通用方法）
+// redisKey: Redis 中的版本号 key
+// 返回 true 表示版本号有变化或首次加载，需要拉取数据
+// 返回 false 表示版本号未变化，无需拉取数据
+func CheckVersionChanged(redisKey string) bool {
+	// 从 Redis 获取版本号
+	newVersion, err := Rdb.Get(redisKey).Int()
+	if err != nil {
+		// Redis 获取失败，默认需要更新（首次加载或 key 不存在）
+		return true
+	}
+
+	// 与本地缓存的版本号比较
+	if oldVersion, found := Cache.Get(redisKey); found {
+		if oldVersion.(int) == newVersion {
+			return false // 版本号未变化
+		}
+	}
+
+	// 更新本地版本号缓存（不过期）
+	Cache.Set(redisKey, newVersion, cache.NoExpiration)
+	return true
 }
 
 // ========== 完赛数据缓存 ==========

@@ -50,6 +50,7 @@ var sportsLabelMap = map[string][]string{
 // startDay: 起始偏移天数（0=今天）
 // endDay: 结束偏移天数（不包含）
 // 例：RefreshMatchRecordCache(0, 10) 刷新近10天，RefreshMatchRecordCache(10, 30) 刷新10-30天
+// 增量更新：先检查 Redis 版本号，版本号有变化才拉取数据
 func RefreshMatchRecordCache(startDay, endDay int) {
 	now := time.Now()
 	var wg sync.WaitGroup
@@ -57,6 +58,7 @@ func RefreshMatchRecordCache(startDay, endDay int) {
 
 	// 临时存储结果，避免并发写入
 	results := make(map[string]*validate.DayMatchRecordCache)
+	updatedCount := 0
 
 	// 并行获取数据
 	for i := startDay; i < endDay; i++ {
@@ -64,11 +66,19 @@ func RefreshMatchRecordCache(startDay, endDay int) {
 		go func(offset int) {
 			defer wg.Done()
 			date := now.AddDate(0, 0, -offset).Format("2006-01-02")
+
+			// 检查版本号是否变化（通用方法）
+			versionKey := fmt.Sprintf(config.PgameLeagueScheduleCodeKey, date)
+			if !data.CheckVersionChanged(versionKey) {
+				return // 版本号未变化，跳过
+			}
+
 			cacheData := FetchDayMatchRecord(date)
 
 			// 加锁写入临时 map
 			mu.Lock()
 			results[date] = cacheData
+			updatedCount++
 			mu.Unlock()
 		}(i)
 	}
@@ -81,7 +91,9 @@ func RefreshMatchRecordCache(startDay, endDay int) {
 		data.SetMatchRecordCache(date, cacheData)
 	}
 
-	data.Logger.Printf("完赛缓存刷新完成，范围 %d-%d 天\n", startDay, endDay)
+	if updatedCount > 0 {
+		data.Logger.Printf("完赛缓存刷新完成，范围 %d-%d 天，更新 %d 天\n", startDay, endDay, updatedCount)
+	}
 }
 
 // FetchDayMatchRecord 获取某一天的完赛数据（静态文件 + 全民赛程）
@@ -169,7 +181,7 @@ func fetchStaticMatchRecord(date string) []interface{} {
 
 // fetchPgameLeagueRecord 从 Redis 获取全民赛程数据（所有联赛）
 func fetchPgameLeagueRecord(date string) []interface{} {
-	redisKey := fmt.Sprintf("pgame:league:schedule:%s", date)
+	redisKey := config.PgameLeagueSchedulePrefix + date
 
 	jsonStr, err := data.Rdb.Get(redisKey).Result()
 	if err != nil {
