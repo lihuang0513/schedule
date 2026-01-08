@@ -46,8 +46,11 @@ var sportsLabelMap = map[string][]string{
 
 // ========== 完赛缓存 ==========
 
-// RefreshMatchRecordCache 刷新近 N 天的完赛缓存（并行获取，统一写入）
-func RefreshMatchRecordCache() {
+// RefreshMatchRecordCache 刷新指定天数范围的完赛缓存（并行获取，统一写入）
+// startDay: 起始偏移天数（0=今天）
+// endDay: 结束偏移天数（不包含）
+// 例：RefreshMatchRecordCache(0, 10) 刷新近10天，RefreshMatchRecordCache(10, 30) 刷新10-30天
+func RefreshMatchRecordCache(startDay, endDay int) {
 	now := time.Now()
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -56,7 +59,7 @@ func RefreshMatchRecordCache() {
 	results := make(map[string]*validate.DayMatchRecordCache)
 
 	// 并行获取数据
-	for i := 0; i < config.CacheDays; i++ {
+	for i := startDay; i < endDay; i++ {
 		wg.Add(1)
 		go func(offset int) {
 			defer wg.Done()
@@ -78,7 +81,7 @@ func RefreshMatchRecordCache() {
 		data.SetMatchRecordCache(date, cacheData)
 	}
 
-	data.Logger.Printf("完赛缓存刷新完成，缓存 %d 天数据\n", config.CacheDays)
+	data.Logger.Printf("完赛缓存刷新完成，范围 %d-%d 天\n", startDay, endDay)
 }
 
 // FetchDayMatchRecord 获取某一天的完赛数据（静态文件 + 全民赛程）
@@ -204,8 +207,16 @@ func GetMatchRecordList(req validate.MatchRecordListRequest) *validate.MatchReco
 		startDate = time.Now()
 	}
 
-	// 从缓存读取近 10 天数据，找到第一天有符合用户兴趣的数据
-	for i := 0; i < config.CacheDays; i++ {
+	// 限制最大可查询范围：6个月（防止用户无限往前翻导致内存增长）
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	maxDays := 180 // 6个月
+	if today.Sub(startDate).Hours()/24 > float64(maxDays) {
+		return nil // 超出范围，返回空
+	}
+
+	// 从 startDate 往前读取 30 天数据，找到第一天有符合用户兴趣的数据
+	for i := 0; i < config.CacheDaysExtended; i++ {
 		date := startDate.AddDate(0, 0, -i).Format("2006-01-02")
 
 		// 从缓存获取当天数据

@@ -1,32 +1,51 @@
 package crontab
 
 import (
+	config "app/conf"
 	"app/services"
+	"sync"
 	"time"
 )
 
-// 缓存配置
+// 缓存刷新间隔
 const (
-	CacheRefreshInterval = 10 * time.Second // 刷新间隔
+	RecentRefreshInterval   = 10 * time.Second // 近10天刷新间隔
+	ExtendedRefreshInterval = 1 * time.Hour    // 10-30天刷新间隔
 )
 
-// InitTask 初始化定时任务
-func InitTask() {
-	// 首次加载缓存
-	services.RefreshMatchRecordCache()
-	services.RefreshPgameRecommendCache()
+var once sync.Once
 
-	// 启动定时刷新
-	go startCacheRefreshTimer()
+// InitTask 初始化定时任务（只执行一次）
+func InitTask() {
+	once.Do(func() {
+		// 首次加载所有缓存
+		services.RefreshMatchRecordCache(0, config.CacheDaysRecent)                        // 近10天
+		services.RefreshMatchRecordCache(config.CacheDaysRecent, config.CacheDaysExtended) // 10-30天
+		services.RefreshPgameRecommendCache()
+
+		// 启动定时刷新
+		go startRecentCacheRefreshTimer()   // 近10天，每10秒
+		go startExtendedCacheRefreshTimer() // 10-30天，每1小时
+	})
 }
 
-// startCacheRefreshTimer 启动定时刷新任务
-func startCacheRefreshTimer() {
-	ticker := time.NewTicker(CacheRefreshInterval)
+// startRecentCacheRefreshTimer 近10天缓存刷新（每10秒）
+func startRecentCacheRefreshTimer() {
+	ticker := time.NewTicker(RecentRefreshInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		services.RefreshMatchRecordCache()
+		services.RefreshMatchRecordCache(0, config.CacheDaysRecent)
 		services.RefreshPgameRecommendCache()
+	}
+}
+
+// startExtendedCacheRefreshTimer 10-30天缓存刷新（每30分钟）
+func startExtendedCacheRefreshTimer() {
+	ticker := time.NewTicker(ExtendedRefreshInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		services.RefreshMatchRecordCache(config.CacheDaysRecent, config.CacheDaysExtended)
 	}
 }

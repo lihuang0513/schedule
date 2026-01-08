@@ -11,6 +11,13 @@ type PGameListRequestParams struct {
 	RankKeys    string `json:"rank_keys,omitempty"`
 }
 
+// PgameRecommendRequest 推荐接口请求参数
+type PgameRecommendRequest struct {
+	Sign    string `form:"sign"`    // 签名
+	Time    int64  `form:"time"`    // 时间戳
+	AppName string `form:"appname"` // 应用名称
+}
+
 // PgameRecommendCache 推荐数据缓存结构
 type PgameRecommendCache struct {
 	Data     map[string]interface{} `json:"data"`

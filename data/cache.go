@@ -114,7 +114,7 @@ func GetMatchRecordCache(date string) (*validate.DayMatchRecordCache, bool) {
 }
 
 // SetMatchRecordCache 设置缓存
-// 10天内数据不过期（由定时任务刷新），10天前数据过期时间1分钟
+// 过期策略：10天内不过期，10-30天过期1小时，30天前过期1天
 // 先读取现有缓存，数据无变化则跳过写入
 func SetMatchRecordCache(date string, cacheData *validate.DayMatchRecordCache) {
 	key := getMatchRecordCacheKey(date)
@@ -127,12 +127,18 @@ func SetMatchRecordCache(date string, cacheData *validate.DayMatchRecordCache) {
 		}
 	}
 
-	// 计算过期时间：10天内不过期（有定时任务10s刷新），10天前过期5分钟
+	// 计算过期时间
 	expiration := cache.NoExpiration
 	if t, err := time.Parse("2006-01-02", date); err == nil {
-		if time.Since(t) > time.Duration(config.CacheDays)*24*time.Hour {
-			expiration = time.Minute * 5
+		daysSince := int(time.Since(t).Hours() / 24)
+		if daysSince > config.CacheDaysExtended {
+			// 30天前：1天过期
+			expiration = 24 * time.Hour
+		} else if daysSince > config.CacheDaysRecent {
+			// 10-30天：1小时过期
+			expiration = time.Hour
 		}
+		// 10天内：不过期定时器更新
 	}
 
 	Cache.Set(key, cacheData, expiration)

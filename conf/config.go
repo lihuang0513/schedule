@@ -48,7 +48,8 @@ const (
 
 // 缓存配置常量
 const (
-	CacheDays              = 10                                   // 缓存天数
+	CacheDaysRecent        = 10                                   // 近期缓存天数（高频刷新）
+	CacheDaysExtended      = 30                                   // 扩展缓存天数（低频刷新）
 	StaticRecordURL        = "http://s.qiumibao.com/json/record/" // 静态数据接口地址
 	PgameRecommendRedisKey = "pgame:recommend"                    // Redis key
 	PgameRecommendCacheKey = "pgame:league:recommend"             // 内存缓存 key

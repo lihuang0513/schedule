@@ -25,8 +25,8 @@ func MatchRecordList(c *gin.Context) {
 
 	// 校验签名（暂时关闭）
 	if !tool.VerifySign(req.NextDate, req.Sign, req.Time, req.AppName) {
-		// respond(c, req.Callback, emptyResponse("签名错误"))
-		// return
+		//respond(c, req.Callback, emptyResponse("签名错误"))
+		//return
 	}
 
 	// 处理日期参数，默认当天
