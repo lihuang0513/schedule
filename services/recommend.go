@@ -93,6 +93,7 @@ func GetPgameRecommendFormatted(pgameLeagueIds string) []validate.PgameRecommend
 	}
 
 	dateMap := make(map[string]*validate.PgameRecommendDateItem)
+	idSet := make(map[string]map[string]struct{}) // key: formatDate, value: 已存在的 id 集合
 
 	for leagueId, leagueData := range rawData {
 		// 联赛ID过滤
@@ -120,16 +121,30 @@ func GetPgameRecommendFormatted(pgameLeagueIds string) []validate.PgameRecommend
 
 			list, _ := dateObj["list"].([]interface{})
 
-			if existing := dateMap[formatDate]; existing != nil {
-				if len(list) > 0 {
-					existing.List = append(existing.List, list...)
-				}
-			} else {
+			// 初始化该日期的数据结构
+			if dateMap[formatDate] == nil {
 				date, _ := dateObj["date"].(string)
 				dateMap[formatDate] = &validate.PgameRecommendDateItem{
 					FormatDate: formatDate,
 					Date:       date,
-					List:       list,
+					List:       []interface{}{},
+				}
+				idSet[formatDate] = make(map[string]struct{})
+			}
+
+			// 按 id 去重添加
+			for _, item := range list {
+				match, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				id, _ := match["id"].(string)
+				if id == "" {
+					continue
+				}
+				if _, exists := idSet[formatDate][id]; !exists {
+					idSet[formatDate][id] = struct{}{}
+					dateMap[formatDate].List = append(dateMap[formatDate].List, item)
 				}
 			}
 		}
