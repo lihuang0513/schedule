@@ -1,8 +1,10 @@
 package services
 
 import (
+	config "app/conf"
 	"app/data"
 	"app/validate"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -27,5 +29,44 @@ func RefreshCache(cacheType, date string) validate.CacheRefreshResult {
 		return validate.CacheRefreshResult{Code: http.StatusOK, Success: true, Msg: "完赛缓存刷新成功", Date: date}
 	default:
 		return validate.CacheRefreshResult{Code: http.StatusBadRequest, Success: false, Msg: "参数错误"}
+	}
+}
+
+// CleanupExpiredRedisKeys 清理6个月前的 Redis key 和内存缓存
+// 清理 key：pgame:league:schedule:{date}、pgame:league:schedule:{date}:code、pgame:league:schedule:{date}:hash
+func CleanupExpiredRedisKeys() {
+	expireDate := time.Now().AddDate(0, 0, -config.CacheDaysExpire)
+	redisDeletedCount := 0
+	memoryDeletedCount := 0
+
+	// 往前清理1天的数据
+	for i := 0; i < 1; i++ {
+		date := expireDate.AddDate(0, 0, -i).Format("2006-01-02")
+
+		// 清理 Redis key：数据、版本号、hash
+		redisKeys := []string{
+			config.PgameLeagueSchedulePrefix + date,
+			fmt.Sprintf(config.PgameLeagueScheduleCodeKey, date),
+			fmt.Sprintf(config.PgameLeagueScheduleHashKey, date),
+		}
+
+		for _, key := range redisKeys {
+			if err := data.Rdb.Del(key).Err(); err == nil {
+				redisDeletedCount++
+			}
+		}
+
+		// 清理内存缓存（完赛数据 + 版本号）
+		memoryCacheKey := config.MatchRecordCachePrefix + date
+		data.Cache.Delete(memoryCacheKey)
+		memoryDeletedCount++
+
+		versionCacheKey := fmt.Sprintf(config.PgameLeagueScheduleCodeKey, date)
+		data.Cache.Delete(versionCacheKey)
+		memoryDeletedCount++
+	}
+
+	if redisDeletedCount > 0 || memoryDeletedCount > 0 {
+		data.Logger.Printf("清理过期数据完成，Redis: %d 个 key，内存: %d 个 key\n", redisDeletedCount, memoryDeletedCount)
 	}
 }

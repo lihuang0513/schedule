@@ -4,6 +4,7 @@ import (
 	. "app/conf/autoload"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/go-ini/ini"
 )
@@ -48,17 +49,30 @@ const (
 
 // 缓存配置常量
 const (
-	CacheDaysRecent        = 10                                   // 近期缓存天数（高频刷新）
-	CacheDaysExtended      = 30                                   // 扩展缓存天数（低频刷新）
-	StaticRecordURL        = "http://s.qiumibao.com/json/record/" // 静态数据接口地址
-	PgameRecommendCacheKey = "pgame:league:recommend"             // 推荐数据内存缓存 key
-	MatchRecordCachePrefix = "pgame:league:finished:"             // 完赛内存缓存 key 前缀
 
-	// Redis 版本号 key（用于增量更新判断）
+	// 相关阈值
+	CacheDaysRecent   = 10  // 缓存近10天的完赛赛程阈值
+	CacheDaysExtended = 30  // 缓存10-30天的完赛赛程阈值
+	CacheDaysExpire   = 180 // 清理完赛赛程数据，60天以上
+
+	// 内存key
+	PgameRecommendCacheKey = "pgame:league:recommend" // 全民推荐赛程内存key
+	MatchRecordCachePrefix = "pgame:league:finished:" // 完赛内存动态列表缓存key 前缀
+
+	// 请求url
+	StaticRecordURL = "http://s.qiumibao.com/json/record/" // 静态数据接口地址
+
+	// Redis版本号key
 	PgameLeagueSchedulePrefix  = "pgame:league:schedule:"        // 完赛数据 Redis key 前缀
 	PgameLeagueScheduleCodeKey = "pgame:league:schedule:%s:code" // 完赛数据版本号 key，%s 为日期
+	PgameLeagueScheduleHashKey = "pgame:league:schedule:%s:hash" // 完赛数据 hash key，%s 为日期
 	PgameRecommendRedisKey     = "pgame:recommend"               // 推荐数据 Redis key
 	PgameRecommendCodeKey      = "pgame:recommend:code"          // 推荐数据版本号 key
+
+	// 定时任务刷新间隔
+	RecentRefreshInterval   = 10 * time.Second // 每10秒
+	ExtendedRefreshInterval = 1 * time.Hour    // 每小时
+	CleanupInterval         = 24 * time.Hour   // 每天
 )
 
 func InitConfig() {

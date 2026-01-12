@@ -4,6 +4,7 @@ import (
 	c "app/conf"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/go-redis/redis"
 )
@@ -14,8 +15,13 @@ var Rdb *redis.Client
 func initRedis(ws *sync.WaitGroup) {
 	defer ws.Done()
 	Rdb = redis.NewClient(&redis.Options{
-		Addr:     c.Config.Redis.Host + ":" + c.Config.Redis.Port,
-		Password: c.Config.Redis.Password,
+		Addr:         c.Config.Redis.Host + ":" + c.Config.Redis.Port,
+		Password:     c.Config.Redis.Password,
+		PoolSize:     100,             // 连接池大小
+		MinIdleConns: 10,              // 最小空闲连接
+		DialTimeout:  5 * time.Second, // 连接超时
+		ReadTimeout:  3 * time.Second, // 读取超时
+		WriteTimeout: 3 * time.Second, // 写入超时
 	})
 	_, err := Rdb.Ping().Result()
 

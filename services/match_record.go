@@ -16,7 +16,14 @@ import (
 )
 
 // httpClient 复用 HTTP 客户端（避免每次请求创建新连接）
-var httpClient = &http.Client{Timeout: 5 * time.Second}
+var httpClient = &http.Client{
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,              // 最大空闲连接
+		MaxIdleConnsPerHost: 20,               // 单主机最大空闲连接
+		IdleConnTimeout:     90 * time.Second, // 空闲连接超时
+	},
+}
 
 // sportsLabelMap 用户运动标签映射
 var sportsLabelMap = map[string][]string{
