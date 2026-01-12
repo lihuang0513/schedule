@@ -63,11 +63,11 @@ const (
 	StaticRecordURL = "http://s.qiumibao.com/json/record/" // 静态数据接口地址
 
 	// Redis版本号key
-	PgameLeagueSchedulePrefix  = "pgame:league:schedule:"        // 完赛数据 Redis key 前缀
-	PgameLeagueScheduleCodeKey = "pgame:league:schedule:%s:code" // 完赛数据版本号 key，%s 为日期
-	PgameLeagueScheduleHashKey = "pgame:league:schedule:%s:hash" // 完赛数据 hash key，%s 为日期
-	PgameRecommendRedisKey     = "pgame:recommend"               // 推荐数据 Redis key
-	PgameRecommendCodeKey      = "pgame:recommend:code"          // 推荐数据版本号 key
+	PgameLeagueSchedulePrefix  = "pgame:finished:"        // 完赛数据 Redis key 前缀
+	PgameLeagueScheduleCodeKey = "pgame:finished:%s:code" // 完赛数据版本号 key，%s 为日期
+	PgameLeagueScheduleHashKey = "pgame:finished:%s:hash" // 完赛数据 hash key，%s 为日期
+	PgameRecommendRedisKey     = "pgame:recommend"        // 推荐数据 Redis key
+	PgameRecommendCodeKey      = "pgame:recommend:code"   // 推荐数据版本号 key
 
 	// 定时任务刷新间隔
 	RecentRefreshInterval   = 10 * time.Second // 每10秒

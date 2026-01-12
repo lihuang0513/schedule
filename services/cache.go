@@ -33,7 +33,7 @@ func RefreshCache(cacheType, date string) validate.CacheRefreshResult {
 }
 
 // CleanupExpiredRedisKeys 清理6个月前的 Redis key 和内存缓存
-// 清理 key：pgame:league:schedule:{date}、pgame:league:schedule:{date}:code、pgame:league:schedule:{date}:hash
+// 清理 key：pgame:finished:{date}、pgame:finished:{date}:code、pgame:finished:{date}:hash
 func CleanupExpiredRedisKeys() {
 	expireDate := time.Now().AddDate(0, 0, -config.CacheDaysExpire)
 	redisDeletedCount := 0
