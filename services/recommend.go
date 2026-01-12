@@ -6,6 +6,7 @@ import (
 	"app/tool"
 	"app/validate"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -69,6 +70,87 @@ func GetPgameRecommend() map[string]interface{} {
 		return nil
 	}
 	return cacheData.Data
+}
+
+// GetPgameRecommendFormatted 获取格式化后的推荐数据（按联赛ID过滤）
+// pgameLeagueIds: 逗号分隔的联赛ID列表，如 "3729,1234"
+func GetPgameRecommendFormatted(pgameLeagueIds string) []validate.PgameRecommendDateItem {
+	rawData := GetPgameRecommend()
+	if rawData == nil || len(rawData) == 0 {
+		return nil
+	}
+
+	// 解析联赛ID过滤集合
+	var leagueIdSet map[string]struct{}
+	if pgameLeagueIds != "" {
+		ids := strings.Split(pgameLeagueIds, ",")
+		leagueIdSet = make(map[string]struct{}, len(ids))
+		for _, id := range ids {
+			if id = strings.TrimSpace(id); id != "" {
+				leagueIdSet[id] = struct{}{}
+			}
+		}
+	}
+
+	dateMap := make(map[string]*validate.PgameRecommendDateItem)
+
+	for leagueId, leagueData := range rawData {
+		// 联赛ID过滤
+		if leagueIdSet != nil {
+			if _, ok := leagueIdSet[leagueId]; !ok {
+				continue
+			}
+		}
+
+		dateList, ok := leagueData.([]interface{})
+		if !ok {
+			continue
+		}
+
+		for i := range dateList {
+			dateObj, ok := dateList[i].(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			formatDate, _ := dateObj["formatDate"].(string)
+			if formatDate == "" {
+				continue
+			}
+
+			list, _ := dateObj["list"].([]interface{})
+
+			if existing := dateMap[formatDate]; existing != nil {
+				if len(list) > 0 {
+					existing.List = append(existing.List, list...)
+				}
+			} else {
+				date, _ := dateObj["date"].(string)
+				dateMap[formatDate] = &validate.PgameRecommendDateItem{
+					FormatDate: formatDate,
+					Date:       date,
+					List:       list,
+				}
+			}
+		}
+	}
+
+	if len(dateMap) == 0 {
+		return nil
+	}
+
+	// 直接分配精确容量
+	result := make([]validate.PgameRecommendDateItem, 0, len(dateMap))
+	for _, item := range dateMap {
+		result = append(result, *item)
+	}
+
+	// 按日期排序（直接对结果排序，避免额外的 slice）
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].FormatDate < result[j].FormatDate
+	})
+
+	return result
 }
 
 func getPGameListParams(c *gin.Context) (request validate.PGameListRequestParams) {

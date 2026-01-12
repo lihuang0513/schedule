@@ -13,9 +13,10 @@ type PGameListRequestParams struct {
 
 // PgameRecommendRequest 推荐接口请求参数
 type PgameRecommendRequest struct {
-	Sign    string `form:"sign"`    // 签名
-	Time    int64  `form:"time"`    // 时间戳
-	AppName string `form:"appname"` // 应用名称
+	Sign           string `form:"sign"`             // 签名
+	Time           int64  `form:"time"`             // 时间戳
+	AppName        string `form:"appname"`          // 应用名称
+	PgameLeagueIds string `form:"pgame_league_ids"` // 联赛ID列表，逗号分隔
 }
 
 // PgameRecommendCache 推荐数据缓存结构
@@ -24,9 +25,9 @@ type PgameRecommendCache struct {
 	UpdateAt time.Time              `json:"update_at"`
 }
 
-// PgameRecommendResponse 全民赛事推荐响应
-type PgameRecommendResponse struct {
-	Status int                    `json:"status"`
-	Msg    string                 `json:"msg"`
-	List   map[string]interface{} `json:"list"`
+// PgameRecommendDateItem 按日期分组的赛事数据
+type PgameRecommendDateItem struct {
+	FormatDate string        `json:"formatDate"` // 格式化日期 2026-01-12
+	Date       string        `json:"date"`       // 显示日期 01月12日 星期一
+	List       []interface{} `json:"list"`       // 赛事列表
 }
