@@ -21,8 +21,8 @@ func RecommendList(c *gin.Context) {
 
 	// 校验签名
 	if !tool.VerifySign("", req.Sign, req.Time, req.AppName) {
-		//c.JSON(http.StatusOK, []validate.PgameRecommendDateItem{})
-		//return
+		c.JSON(http.StatusOK, []validate.PgameRecommendDateItem{})
+		return
 	}
 
 	// 获取格式化后的数据，支持按联赛ID过滤

@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	ZbbDidSalt    = "#j&MA%j3FSj1D*lB"
-	LogChk        = "$safa1231@sd123"
 	SignKey       = "ew67oIruFw20iu99roPw" // zhibo8 签名密钥
 	DQDSignKey    = "edQlKvOrR%Fcm1o4yB5q" // dongqiudi 签名密钥
 	SignExpireSec = 300                    // 签名有效期（秒）
@@ -78,7 +76,7 @@ const (
 func InitConfig() {
 	once.Do(func() {
 		// 加载 .ini 配置
-		loadIni("./conf/config_pro.ini")
+		loadIni("./conf/config.ini")
 	})
 }
 
