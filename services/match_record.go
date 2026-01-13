@@ -211,7 +211,7 @@ func fetchPgameLeagueRecord(date string) []interface{} {
 }
 
 // GetMatchRecordList 获取完赛列表（从内存缓存读取）
-// 解析用户兴趣标签 → 从缓存读取近10天数据 → 过滤用户兴趣
+// 解析用户兴趣标签 → 从缓存读取近10天数据 → 过滤用户兴趣+区域
 // 分页设计：找到第一天有数据的立即返回，通过 next_date 获取下一页
 func GetMatchRecordList(req validate.MatchRecordListRequest) *validate.MatchRecordResponse {
 	// 构建过滤参数

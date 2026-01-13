@@ -34,7 +34,7 @@ func MatchRecordList(c *gin.Context) {
 		req.NextDate = time.Now().Format("2006-01-02")
 	}
 
-	// 从内存缓存获取完赛数据（已整合全民赛程 + 兴趣过滤）
+	// 从内存缓存获取完赛数据（已整合全民赛程 + 兴趣过滤 + 区域过滤）
 	matchRecordResult := services.GetMatchRecordList(req)
 
 	// 返回响应
