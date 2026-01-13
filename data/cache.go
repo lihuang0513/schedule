@@ -1,11 +1,11 @@
 package data
 
 import (
-	config "app/conf"
-	"app/validate"
 	"encoding/json"
 	"reflect"
 	"runtime"
+	config "schedule-api/conf"
+	"schedule-api/validate"
 	"sync"
 	"time"
 

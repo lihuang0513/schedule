@@ -1,8 +1,8 @@
 package config
 
 import (
-	. "app/conf/autoload"
 	"log"
+	. "schedule-api/conf/autoload"
 	"sync"
 	"time"
 

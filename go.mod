@@ -1,4 +1,4 @@
-module app
+module schedule-api
 
 go 1.19
 

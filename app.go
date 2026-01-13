@@ -2,13 +2,13 @@ package main
 
 import (
 	// 导入配置模块，用于初始化和读取配置信息
-	config "app/conf"
+	config "schedule-api/conf"
 	// 导入定时任务模块，用于初始化缓存定时任务
-	"app/crontab"
+	"schedule-api/crontab"
 	// 导入数据模块，可能用于初始化数据结构或数据库连接
-	"app/data"
+	"schedule-api/data"
 	// 导入路由模块，用于设置HTTP路由
-	"app/router"
+	"schedule-api/router"
 	// 导入endless库，用于创建可以平滑重启的HTTP服务器
 	"github.com/fvbock/endless"
 	// 导入日志库，用于记录日志信息

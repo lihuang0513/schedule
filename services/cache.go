@@ -1,11 +1,11 @@
 package services
 
 import (
-	config "app/conf"
-	"app/data"
-	"app/validate"
 	"fmt"
 	"net/http"
+	config "schedule-api/conf"
+	"schedule-api/data"
+	"schedule-api/validate"
 	"time"
 )
 

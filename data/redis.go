@@ -1,8 +1,8 @@
 package data
 
 import (
-	c "app/conf"
 	"log"
+	c "schedule-api/conf"
 	"sync"
 	"time"
 

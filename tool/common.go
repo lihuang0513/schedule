@@ -1,7 +1,6 @@
 package tool
 
 import (
-	config "app/conf"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
@@ -9,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	config "schedule-api/conf"
 	"strconv"
 	"strings"
 )

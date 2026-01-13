@@ -1,11 +1,11 @@
 package services
 
 import (
-	config "app/conf"
-	"app/data"
-	"app/tool"
-	"app/validate"
 	"encoding/json"
+	config "schedule-api/conf"
+	"schedule-api/data"
+	"schedule-api/tool"
+	"schedule-api/validate"
 	"sort"
 	"strings"
 	"time"

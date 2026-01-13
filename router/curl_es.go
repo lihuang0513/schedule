@@ -1,12 +1,12 @@
 package router
 
 import (
-	config "app/conf"
-	"app/data"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	config "schedule-api/conf"
+	"schedule-api/data"
 	"time"
 )
 

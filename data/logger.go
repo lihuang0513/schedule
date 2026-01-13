@@ -1,11 +1,11 @@
 package data
 
 import (
-	c "app/conf"
-	"app/tool"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"log"
 	"os"
+	c "schedule-api/conf"
+	"schedule-api/tool"
 	"sync"
 	"time"
 )

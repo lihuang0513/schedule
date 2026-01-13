@@ -3,11 +3,11 @@ package router
 import (
 	"bytes"
 	// 导入项目内部的配置包，用于读取和解析配置信息
-	c "app/conf"
+	c "schedule-api/conf"
 	// 导入项目内部的控制器包，处理HTTP请求和响应
-	"app/controller"
+	"schedule-api/controller"
 	// 导入项目内部的工具包，提供辅助功能和工具函数
-	"app/tool"
+	"schedule-api/tool"
 	// 导入gin的gzip中间件，用于压缩HTTP响应体
 	"github.com/gin-contrib/gzip"
 	// 导入gin框架，用于构建web服务器

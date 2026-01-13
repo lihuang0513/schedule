@@ -1,12 +1,12 @@
 package controller
 
 import (
-	"app/services"
-	"app/tool"
-	"app/validate"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"schedule-api/services"
+	"schedule-api/tool"
+	"schedule-api/validate"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +34,7 @@ func MatchRecordList(c *gin.Context) {
 		req.NextDate = time.Now().Format("2006-01-02")
 	}
 
-	// 从内存缓存获取完赛数据（已整合全民赛程 + 兴趣过滤 + 区域过滤）
+	// 从内存缓存获取完赛数据（已整合全民赛程 + 兴趣过滤 + 过滤联赛）
 	matchRecordResult := services.GetMatchRecordList(req)
 
 	// 返回响应

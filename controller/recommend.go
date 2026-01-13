@@ -1,10 +1,10 @@
 package controller
 
 import (
-	"app/services"
-	"app/tool"
-	"app/validate"
 	"net/http"
+	"schedule-api/services"
+	"schedule-api/tool"
+	"schedule-api/validate"
 
 	"github.com/gin-gonic/gin"
 )

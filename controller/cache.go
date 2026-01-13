@@ -1,9 +1,9 @@
 package controller
 
 import (
-	"app/data"
-	"app/services"
 	"net/http"
+	"schedule-api/data"
+	"schedule-api/services"
 
 	"github.com/gin-gonic/gin"
 )

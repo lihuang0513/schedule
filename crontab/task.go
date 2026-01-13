@@ -1,8 +1,8 @@
 package crontab
 
 import (
-	config "app/conf"
-	"app/services"
+	config "schedule-api/conf"
+	"schedule-api/services"
 	"sync"
 	"time"
 )

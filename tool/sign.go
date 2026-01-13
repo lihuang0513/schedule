@@ -1,9 +1,9 @@
 package tool
 
 import (
-	config "app/conf"
 	"crypto/sha256"
 	"fmt"
+	config "schedule-api/conf"
 	"time"
 )
 

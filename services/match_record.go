@@ -1,13 +1,13 @@
 package services
 
 import (
-	config "app/conf"
-	"app/data"
-	"app/validate"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	config "schedule-api/conf"
+	"schedule-api/data"
+	"schedule-api/validate"
 	"sort"
 	"strconv"
 	"strings"
