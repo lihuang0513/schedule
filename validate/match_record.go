@@ -44,3 +44,9 @@ type PgameLeagueData struct {
 	DateStr string                   `json:"date_str"`
 	List    []map[string]interface{} `json:"list"`
 }
+
+// MatchListFilter 赛事列表过滤参数
+type MatchListFilter struct {
+	UserSportsLabels []string            // 用户兴趣标签
+	LeagueIdSet      map[string]struct{} // 联赛ID集合
+}

@@ -214,9 +214,9 @@ func fetchPgameLeagueRecord(date string) []interface{} {
 // 解析用户兴趣标签 → 从缓存读取近10天数据 → 过滤用户兴趣
 // 分页设计：找到第一天有数据的立即返回，通过 next_date 获取下一页
 func GetMatchRecordList(req validate.MatchRecordListRequest) *validate.MatchRecordResponse {
-	// 解析用户兴趣标签（"1,2,3" → ["足球", "篮球", "NBA"]）
-	userSportsLabels := getUserSportsLabels(req.UserSports)
-	if len(userSportsLabels) == 0 {
+	// 构建过滤参数
+	filter := buildMatchListFilter(req)
+	if len(filter.UserSportsLabels) == 0 {
 		return nil
 	}
 
@@ -251,8 +251,8 @@ func GetMatchRecordList(req validate.MatchRecordListRequest) *validate.MatchReco
 			continue
 		}
 
-		// 根据用户兴趣过滤
-		filteredList := filterByUserSports(cacheData.List, userSportsLabels)
+		// 根据过滤条件过滤
+		filteredList := filterMatchList(cacheData.List, filter)
 		if len(filteredList) == 0 {
 			continue
 		}
@@ -271,21 +271,48 @@ func GetMatchRecordList(req validate.MatchRecordListRequest) *validate.MatchReco
 	return nil
 }
 
-// filterByUserSports 根据用户兴趣过滤赛程列表
-func filterByUserSports(list []interface{}, userSportsLabels []string) []interface{} {
-	if len(userSportsLabels) == 0 {
-		return list
+// buildMatchListFilter 构建过滤参数
+func buildMatchListFilter(req validate.MatchRecordListRequest) *validate.MatchListFilter {
+	filter := &validate.MatchListFilter{
+		UserSportsLabels: getUserSportsLabels(req.UserSports),
 	}
 
-	filtered := make([]interface{}, 0)
-	for _, item := range list {
-		if m, ok := item.(map[string]interface{}); ok {
-			if matchUserSportsLabels(m, userSportsLabels) {
-				filtered = append(filtered, item)
+	// 解析联赛ID过滤集合
+	if req.PgameLeagueIds != "" {
+		ids := strings.Split(req.PgameLeagueIds, ",")
+		filter.LeagueIdSet = make(map[string]struct{}, len(ids))
+		for _, id := range ids {
+			if id = strings.TrimSpace(id); id != "" {
+				filter.LeagueIdSet[id] = struct{}{}
 			}
 		}
 	}
 
+	return filter
+}
+
+// filterMatchList 根据过滤条件过滤赛程列表
+func filterMatchList(list []interface{}, filter *validate.MatchListFilter) []interface{} {
+	filtered := make([]interface{}, 0, len(list))
+	for _, item := range list {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		// 用户兴趣过滤
+		if len(filter.UserSportsLabels) > 0 && !matchUserSportsLabels(m, filter.UserSportsLabels) {
+			continue
+		}
+		// 联赛ID过滤：不存在则保留，存在则判断
+		if filter.LeagueIdSet != nil {
+			if leagueId, exists := m["pgame_league_id"].(string); exists {
+				if _, ok := filter.LeagueIdSet[leagueId]; !ok {
+					continue
+				}
+			}
+		}
+		filtered = append(filtered, item)
+	}
 	return filtered
 }
 

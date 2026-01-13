@@ -42,7 +42,7 @@ func SetRouters() *gin.Engine {
 
 	// 内存刷新
 	r.GET("/cache_refresh", controller.CacheRefresh)
-	// 内存数据，未过滤兴趣的
+	// 内存数据，未过滤
 	r.GET("/cache_data", controller.CacheData)
 
 	// 内存状态
