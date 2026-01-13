@@ -76,7 +76,7 @@ const (
 func InitConfig() {
 	once.Do(func() {
 		// 加载 .ini 配置
-		loadIni("./conf/config.ini")
+		loadIni("./conf/config_pro.ini")
 	})
 }
 
